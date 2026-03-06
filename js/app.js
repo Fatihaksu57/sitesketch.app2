@@ -37,11 +37,11 @@ localStorage.setItem('sitesketch_pass', pass);
     _showApp() {
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
-        // Set default auftraggeber based on user
         const userInfo = USERS[this.currentUser];
         if (userInfo) {
 document.title = 'SiteSketch - ' + userInfo.label;
         }
+        this._updateDarkThemeBtn(document.body.classList.contains('dark-theme'));
         this.renderProjectList();
     }
 
@@ -112,6 +112,42 @@ const statusSel = c.querySelector('.project-status-select');
 const cardStatus = statusSel ? statusSel.value : '';
 c.style.display = (!s || t.includes(s) || sub.includes(s)) && (!st || cardStatus === st) && (!ag || cardAg === ag) ? '' : 'none';
         });
+    }
+
+    toggleFilterPanel() {
+        const panel = document.getElementById('filterPanel');
+        if (panel.style.display === 'none') {
+            panel.style.display = 'block';
+            // Sync visible selects with hidden ones
+            document.getElementById('statusFilterVisible').value = document.getElementById('statusFilter').value;
+            document.getElementById('auftraggeberFilterVisible').value = document.getElementById('auftraggeberFilter').value;
+            // Close on outside click
+            setTimeout(() => {
+                const close = (e) => { if (!panel.contains(e.target) && !document.getElementById('filterBtn').contains(e.target)) { panel.style.display = 'none'; document.removeEventListener('click', close); } };
+                document.addEventListener('click', close);
+            }, 10);
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
+    updateFilterBadge() {
+        const st = document.getElementById('statusFilter').value;
+        const ag = document.getElementById('auftraggeberFilter').value;
+        const badge = document.getElementById('filterBadge');
+        badge.style.display = (st || ag) ? 'block' : 'none';
+    }
+
+    toggleDarkTheme() {
+        const on = !document.body.classList.contains('dark-theme');
+        localStorage.setItem('sitesketch_dark_theme', on ? 'true' : 'false');
+        this._applyDarkTheme(on);
+        this._updateDarkThemeBtn(on);
+    }
+
+    _updateDarkThemeBtn(on) {
+        const btn = document.getElementById('darkThemeBtn');
+        if (btn) btn.textContent = on ? '🌙' : '☀️';
     }
 
     showCreateProject() { this.editingId = null; this.tempContacts = []; document.getElementById('projectForm').reset(); this.renderContactList(); if (this.currentUser && USERS[this.currentUser]) { document.getElementById('auftraggeberSelect').value = USERS[this.currentUser].auftraggeber; } this.showView('projectForm'); }
