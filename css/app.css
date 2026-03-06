@@ -172,7 +172,7 @@
         .view.active { display: block; }
 
         /* ── iOS Search Bar ── */
-        .search-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+        .search-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; position: relative; }
         .search-input {
             flex: 1; min-width: 180px; padding: 10px 16px;
             border: none; border-radius: 10px;
