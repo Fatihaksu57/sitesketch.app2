@@ -953,6 +953,7 @@
 
         /* ====== TABLET SIDEBAR (≥768px) ====== */
         .tablet-sidebar { display: none; }
+        .app-body { display: flex; flex-direction: row; flex: 1; overflow: hidden; min-height: 0; }
         @media (min-width: 768px) {
             .bottom-tab-bar { display: none !important; }
             .fab-btn { bottom: 24px; right: 24px; left: auto; transform: none; }
@@ -964,7 +965,6 @@
                 display: flex !important; flex-direction: column;
                 width: 240px; background: var(--bg-card);
                 border-right: 0.5px solid var(--border); flex-shrink: 0;
-                padding-top: var(--safe-top);
             }
             .tablet-sidebar-nav { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
             .tablet-sidebar-section-label {
@@ -984,8 +984,7 @@
                 padding: 12px; border-top: 0.5px solid var(--border);
                 font-size: 11px; color: var(--text-muted);
             }
-            /* #app gets flex-row for sidebar layout */
-            #app .main { display: flex; flex-direction: row; }
+            .main { flex: 1; min-width: 0; }
             .hide-phone { display: inline-flex !important; }
             body.dark-theme .tablet-sidebar { background: rgba(28,28,30,0.95); border-right-color: rgba(255,255,255,0.1); }
         }
