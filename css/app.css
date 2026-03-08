@@ -827,3 +827,171 @@
             .map-toolbar { gap: 6px; padding: 8px 10px; }
             .search-bar .btn { font-size: 12px; padding: 6px 8px; min-height: 36px; }
         }
+
+        /* ====== BOTTOM TAB BAR ====== */
+        .bottom-tab-bar {
+            display: flex; align-items: stretch; justify-content: space-around;
+            height: 56px; padding-bottom: var(--safe-bottom);
+            background: var(--bg-card); border-top: 0.5px solid var(--border);
+            flex-shrink: 0; z-index: 100; position: relative;
+        }
+        .btab {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 2px; border: none; background: transparent; color: var(--text-muted);
+            font-size: 10px; font-weight: 500; cursor: pointer; position: relative;
+            -webkit-tap-highlight-color: transparent; padding: 4px 0;
+        }
+        .btab svg { stroke-width: 1.8; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); }
+        .btab.active { color: var(--ios-orange); }
+        .btab.active svg { stroke-width: 2.2; transform: scale(1.08); }
+        .btab::before {
+            content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%) scaleX(0);
+            width: 28px; height: 2.5px; border-radius: 0 0 2px 2px; background: var(--ios-orange);
+            transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .btab.active::before { transform: translateX(-50%) scaleX(1); }
+        .btab:active svg { transform: scale(0.88); }
+        .btab-spacer { flex: 0.7; }
+        body.dark-theme .bottom-tab-bar { background: rgba(28,28,30,0.95); border-top-color: rgba(255,255,255,0.1); }
+
+        /* Hide tab bar inside project detail / editor / form */
+        .bottom-tab-bar.hidden, .fab-btn.hidden, .fab-menu.hidden, .fab-overlay.hidden { display: none !important; }
+
+        /* ====== FAB ====== */
+        .fab-btn {
+            position: fixed; bottom: calc(56px + var(--safe-bottom) - 14px); left: 50%;
+            transform: translateX(-50%); width: 52px; height: 52px; border-radius: 16px;
+            background: var(--ios-orange); color: #fff; border: none;
+            box-shadow: 0 4px 16px rgba(237,109,15,0.4);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 110;
+            transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fab-btn svg { transition: transform 0.3s ease; }
+        .fab-btn:hover { transform: translateX(-50%) scale(1.06); }
+        .fab-btn:active { transform: translateX(-50%) scale(0.92); }
+        .fab-btn.open svg { transform: rotate(45deg); }
+
+        .fab-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.25);
+            z-index: 108; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .fab-overlay.visible { opacity: 1; pointer-events: auto; }
+
+        .fab-menu {
+            position: fixed; bottom: calc(56px + var(--safe-bottom) + 52px - 6px);
+            left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column-reverse; gap: 8px;
+            z-index: 109; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+        }
+        .fab-menu.visible { pointer-events: auto; opacity: 1; }
+        .fab-menu-item {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--bg-card); border-radius: 14px;
+            padding: 10px 16px 10px 10px; box-shadow: var(--shadow-lg);
+            cursor: pointer; border: 0.5px solid var(--border); white-space: nowrap;
+            transform: translateY(12px) scale(0.9); opacity: 0;
+            transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+            font-size: 14px; font-weight: 600; color: var(--text);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fab-menu.visible .fab-menu-item { transform: translateY(0) scale(1); opacity: 1; }
+        .fab-menu.visible .fab-menu-item:nth-child(1) { transition-delay: 0.03s; }
+        .fab-menu.visible .fab-menu-item:nth-child(2) { transition-delay: 0.06s; }
+        .fab-menu.visible .fab-menu-item:nth-child(3) { transition-delay: 0.09s; }
+        .fab-menu-item:active { transform: scale(0.95) !important; }
+        .fab-menu-icon {
+            width: 34px; height: 34px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        body.dark-theme .fab-menu-item { background: #2C2C2E; border-color: rgba(255,255,255,0.1); color: var(--text); }
+
+        /* ====== SETTINGS VIEW ====== */
+        .settings-section-label {
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.04em; color: var(--text-muted); padding: 16px 0 6px;
+        }
+        .settings-group {
+            background: var(--bg-card); border-radius: var(--radius-lg);
+            overflow: hidden; border: 0.5px solid var(--border);
+        }
+        .settings-row {
+            display: flex; align-items: center; gap: 14px;
+            padding: 13px 16px; border: none; background: transparent;
+            width: 100%; text-align: left; cursor: pointer;
+            transition: background 0.15s; font-family: inherit; font-size: inherit;
+            color: var(--text);
+        }
+        .settings-row:not(:last-child) { border-bottom: 0.5px solid var(--border-light); }
+        .settings-row:hover { background: var(--primary-light); }
+        .settings-row:active { background: var(--border-light); }
+        .settings-icon {
+            width: 32px; height: 32px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .settings-label { flex: 1; font-size: 15px; font-weight: 400; }
+        .settings-chevron { color: var(--text-muted); flex-shrink: 0; }
+
+        /* iOS-style Toggle */
+        .toggle-switch {
+            position: relative; display: inline-block; width: 51px; height: 31px; flex-shrink: 0;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer; inset: 0;
+            background: #E5E5EA; transition: 0.3s; border-radius: 31px;
+        }
+        .toggle-slider::after {
+            content: ''; position: absolute; height: 27px; width: 27px;
+            left: 2px; bottom: 2px; background: white;
+            transition: 0.3s; border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .toggle-switch input:checked + .toggle-slider { background: var(--ios-green); }
+        .toggle-switch input:checked + .toggle-slider::after { transform: translateX(20px); }
+
+        /* ====== TABLET SIDEBAR (≥768px) ====== */
+        .tablet-sidebar { display: none; }
+        @media (min-width: 768px) {
+            .bottom-tab-bar { display: none !important; }
+            .fab-btn { bottom: 24px; right: 24px; left: auto; transform: none; }
+            .fab-btn:hover { transform: scale(1.06); }
+            .fab-btn:active { transform: scale(0.92); }
+            .fab-btn.open svg { transform: rotate(45deg); }
+            .fab-menu { bottom: calc(24px + 52px + 8px); right: 24px; left: auto; transform: none; }
+            .tablet-sidebar {
+                display: flex !important; flex-direction: column;
+                width: 240px; background: var(--bg-card);
+                border-right: 0.5px solid var(--border); flex-shrink: 0;
+                padding-top: var(--safe-top);
+            }
+            .tablet-sidebar-nav { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+            .tablet-sidebar-section-label {
+                font-size: 11px; font-weight: 600; text-transform: uppercase;
+                letter-spacing: 0.05em; color: var(--text-muted); padding: 12px 12px 4px;
+            }
+            .tablet-sidebar-item {
+                display: flex; align-items: center; gap: 12px;
+                padding: 10px 12px; border-radius: 10px; border: none; background: transparent;
+                color: var(--text-secondary); font-size: 14px; font-weight: 500;
+                cursor: pointer; width: 100%; text-align: left;
+                transition: all 0.15s; font-family: inherit;
+            }
+            .tablet-sidebar-item:hover { background: var(--primary-light); color: var(--primary); }
+            .tablet-sidebar-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+            .tablet-sidebar-footer {
+                padding: 12px; border-top: 0.5px solid var(--border);
+                font-size: 11px; color: var(--text-muted);
+            }
+            /* #app gets flex-row for sidebar layout */
+            #app .main { display: flex; flex-direction: row; }
+            .hide-phone { display: inline-flex !important; }
+            body.dark-theme .tablet-sidebar { background: rgba(28,28,30,0.95); border-right-color: rgba(255,255,255,0.1); }
+        }
+        @media (max-width: 767px) {
+            .tablet-sidebar { display: none !important; }
+            .hide-phone { display: none !important; }
+            /* Add bottom padding to views for tab bar */
+            .view { padding-bottom: calc(16px + 56px + var(--safe-bottom)); }
+        }
