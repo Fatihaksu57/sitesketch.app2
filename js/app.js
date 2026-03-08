@@ -87,9 +87,77 @@ this.renderProjectList();
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById(id + 'View').classList.add('active');
         const back = document.getElementById('backBtn'), title = document.getElementById('headerTitle'), actions = document.getElementById('headerActions'), qfmLogo = document.getElementById('headerQfmLogo');
+        // Hide/show bottom tab bar & FAB based on context
+        const tabBar = document.getElementById('bottomTabBar');
+        const fabBtn = document.getElementById('fabBtn');
+        const fabMenu = document.getElementById('fabMenu');
+        const fabOverlay = document.getElementById('fabOverlay');
+        const isSubView = (id !== 'projectList' && id !== 'settings');
+        if (tabBar) tabBar.classList.toggle('hidden', isSubView);
+        if (fabBtn) fabBtn.classList.toggle('hidden', isSubView);
+        if (fabMenu) fabMenu.classList.toggle('hidden', isSubView);
+        if (fabOverlay) fabOverlay.classList.toggle('hidden', isSubView);
         if (id === 'projectList') { back.classList.remove('visible'); title.textContent = ''; actions.innerHTML = ''; if(qfmLogo) qfmLogo.style.display=''; }
         else if (id === 'projectForm') { back.classList.add('visible'); title.textContent = this.editingId ? 'Bearbeiten' : 'Neues Projekt'; actions.innerHTML = ''; if(qfmLogo) qfmLogo.style.display='none'; }
         else if (id === 'projectDetail') { back.classList.add('visible'); title.textContent = this.currentProject?.projectName || ''; if(qfmLogo) qfmLogo.style.display='none'; actions.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="app.editProject()" style="padding:6px 8px;min-height:36px"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn btn-secondary btn-sm" onclick="app.deleteProject()" style="padding:6px 8px;min-height:36px;color:#dc2626"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button><button class="btn btn-secondary btn-sm" onclick="app.exportProject()" style="padding:6px 8px;min-height:36px"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button><button class="btn btn-primary btn-sm" onclick="app.exportPDF()" style="padding:6px 10px;min-height:36px">PDF</button>'; }
+        else if (id === 'settings') { back.classList.remove('visible'); title.textContent = ''; actions.innerHTML = ''; if(qfmLogo) qfmLogo.style.display=''; }
+    }
+
+    // ====== MAIN VIEW SWITCHING (Tab Bar / Sidebar) ======
+    showMainView(which) {
+        this.closeFAB();
+        if (which === 'projects') {
+            this.showView('projectList');
+            this.renderProjectList();
+        } else if (which === 'settings') {
+            this.showView('settings');
+            // Sync dark mode toggle
+            const toggle = document.getElementById('settingsDarkToggle');
+            if (toggle) toggle.checked = document.body.classList.contains('dark-theme');
+            // Sync region
+            document.getElementById('settingsRegion').value = localStorage.getItem('sitesketch_region') || '';
+        }
+        // Update tab bar active state
+        document.querySelectorAll('.btab[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === which));
+        document.querySelectorAll('.tablet-sidebar-item[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === which));
+    }
+
+    // ====== FAB ======
+    toggleFAB() {
+        const btn = document.getElementById('fabBtn');
+        const menu = document.getElementById('fabMenu');
+        const overlay = document.getElementById('fabOverlay');
+        const isOpen = menu.classList.contains('visible');
+        if (isOpen) { this.closeFAB(); } else {
+            btn.classList.add('open');
+            menu.classList.add('visible');
+            overlay.classList.add('visible');
+        }
+    }
+    closeFAB() {
+        const btn = document.getElementById('fabBtn');
+        const menu = document.getElementById('fabMenu');
+        const overlay = document.getElementById('fabOverlay');
+        if (btn) btn.classList.remove('open');
+        if (menu) menu.classList.remove('visible');
+        if (overlay) overlay.classList.remove('visible');
+    }
+
+    // ====== JSON EXPORT ALL ======
+    async exportAllProjects() {
+        try {
+            const projects = await this.db.getAll('projects');
+            const photos = await this.db.getAll('photos');
+            const data = { version: 2, exportedAt: new Date().toISOString(), projects, photos };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'sitesketch-export-' + new Date().toISOString().slice(0,10) + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            this.toast('Export gespeichert', 'success');
+        } catch(e) { this.toast('Export-Fehler: ' + e.message, 'error'); }
     }
     goBack() { this.showView('projectList'); this.renderProjectList(); }
     closePdfOverlay() { const el = document.getElementById('pdfOverlay'); if (el) el.remove(); }
@@ -142,12 +210,14 @@ c.style.display = (!s || t.includes(s) || sub.includes(s)) && (!st || cardStatus
         const on = !document.body.classList.contains('dark-theme');
         localStorage.setItem('sitesketch_dark_theme', on ? 'true' : 'false');
         this._applyDarkTheme(on);
-        this._updateDarkThemeBtn(on);
+        // Sync toggle in settings view
+        const toggle = document.getElementById('settingsDarkToggle');
+        if (toggle) toggle.checked = on;
+        this.toast(on ? 'Dark Mode aktiviert' : 'Dark Mode deaktiviert', 'success');
     }
 
     _updateDarkThemeBtn(on) {
-        const btn = document.getElementById('darkThemeBtn');
-        if (btn) btn.textContent = on ? '🌙' : '☀️';
+        // Legacy — no-op, header button removed
     }
 
     showCreateProject() { this.editingId = null; this.tempContacts = []; document.getElementById('projectForm').reset(); this.renderContactList(); if (this.currentUser && USERS[this.currentUser]) { document.getElementById('auftraggeberSelect').value = USERS[this.currentUser].auftraggeber; } this.showView('projectForm'); }
@@ -566,26 +636,16 @@ await this.db.put('photos', { id: 'ph' + Date.now() + '_' + Math.random().toStri
         this._locationTimer = setTimeout(function() { app.fetchLocationSuggestions(q); }, 300);
     }
     showSettings() {
-        var modal = document.getElementById('settingsModal');
-        document.getElementById('settingsRegion').value = localStorage.getItem('sitesketch_region') || '';
-        var darkOn = localStorage.getItem('sitesketch_dark_theme') === 'true';
-        document.getElementById('settingsDarkTheme').checked = darkOn;
-        this._updateDarkThemeUI(darkOn);
-        modal.style.display = 'flex';
+        this.showMainView('settings');
     }
     closeSettings() {
-        document.getElementById('settingsModal').style.display = 'none';
+        this.showMainView('projects');
     }
     saveDarkTheme() {
-        var on = document.getElementById('settingsDarkTheme').checked;
-        localStorage.setItem('sitesketch_dark_theme', on ? 'true' : 'false');
-        this._applyDarkTheme(on); this._updateDarkThemeUI(on);
-        this.toast(on ? 'Dark Theme aktiviert' : 'Dark Theme deaktiviert', 'success');
+        this.toggleDarkTheme();
     }
     _updateDarkThemeUI(on) {
-        var s = document.getElementById('darkThemeSlider'), bg = document.getElementById('settingsDarkTheme').parentElement.children[1], l = document.getElementById('darkThemeLabel');
-        if (on) { s.style.transform='translateX(20px)'; bg.style.background='#34C759'; l.textContent='An'; }
-        else { s.style.transform='translateX(0)'; bg.style.background='#E5E5EA'; l.textContent='Aus'; }
+        // Legacy — settings view uses native checkbox now
     }
     _applyDarkTheme(on) {
         if (on) {
