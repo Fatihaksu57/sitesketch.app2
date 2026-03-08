@@ -59,6 +59,22 @@
             <div class="header-actions" id="headerActions"></div>
             <img id="headerQfmLogo" src="assets/qfm-logo.png" style="height:28px;flex-shrink:0" alt="QFM">
         </header>
+        <div class="app-body">
+            <!-- Tablet Sidebar -->
+            <aside class="tablet-sidebar" id="tabletSidebar">
+                <nav class="tablet-sidebar-nav">
+                    <div class="tablet-sidebar-section-label">Navigation</div>
+                    <button class="tablet-sidebar-item active" data-nav="projects" onclick="app.showMainView('projects')">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        Projekte
+                    </button>
+                    <button class="tablet-sidebar-item" data-nav="settings" onclick="app.showMainView('settings')">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        Einstellungen
+                    </button>
+                </nav>
+                <div class="tablet-sidebar-footer">SiteSketch v2.0 · QFM</div>
+            </aside>
         <main class="main">
             <div class="view active" id="projectListView">
                 <div class="search-bar">
@@ -573,22 +589,8 @@
             <input type="file" class="file-input-hidden" id="jsonImportInput" accept=".json"
                 onchange="app.handleJsonImport(event)">
 
-
-    <!-- ====== TABLET SIDEBAR (≥768px) ====== -->
-    <aside class="tablet-sidebar" id="tabletSidebar">
-        <nav class="tablet-sidebar-nav">
-            <div class="tablet-sidebar-section-label">Navigation</div>
-            <button class="tablet-sidebar-item active" data-nav="projects" onclick="app.showMainView('projects')">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                Projekte
-            </button>
-            <button class="tablet-sidebar-item" data-nav="settings" onclick="app.showMainView('settings')">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Einstellungen
-            </button>
-        </nav>
-        <div class="tablet-sidebar-footer">SiteSketch v2.0 · QFM</div>
-    </aside>
+        </main>
+        </div><!-- /app-body -->
 
     <!-- ====== BOTTOM TAB BAR (phone) ====== -->
     <nav class="bottom-tab-bar" id="bottomTabBar">
