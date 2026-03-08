@@ -1,2 +1,2 @@
 # sitesketch.app
-sitesketch.app as PWA
+sitesketch.app as PWA.
