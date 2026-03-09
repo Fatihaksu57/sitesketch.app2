@@ -1801,8 +1801,8 @@ if (ph.annotations && ph.annotations.length) {
     this.editor.photo = ph; this.editor.image = img; this.editor.annotations = ph.annotations;
     src = await this.editor.renderToImage();
 }
-const notesHtml = ph.notes ? `<p style="margin:4px 0 0 0;font-size:11px;color:#475569;font-style:italic;text-align:center">${this.esc(ph.notes)}</p>` : '';
-photosHtml += `<div style="page-break-inside:avoid;margin-bottom:15px"><img src="${src}" style="max-width:100%;max-height:350px;display:block;margin:0 auto">${notesHtml}</div>`;
+const notesHtml = ph.notes ? `<p style="margin:10px 0 0 0;font-size:16px;color:#475569;font-style:italic;text-align:center">${this.esc(ph.notes)}</p>` : '';
+photosHtml += `<div style="page-break-after:always;page-break-inside:avoid;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:0;margin:0"><img src="${src}" style="max-width:100%;max-height:calc(100vh - 40px);object-fit:contain;display:block">${notesHtml}</div>`;
         }
 
         const pdfTitle = `Trassenaufnahme_${this.currentProject.projectNumber || this.currentProject.projectName}`.replace(/[^a-zA-Z0-9_\-äöüÄÖÜß]/g, '_');
@@ -1810,7 +1810,7 @@ photosHtml += `<div style="page-break-inside:avoid;margin-bottom:15px"><img src=
 <link href='https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap' rel='stylesheet'>
 <style>
 @page { size: A4 portrait; margin: 12mm; }
-@media print { .no-print { display: none !important; } body { padding: 0; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } img { max-width: 100% !important; page-break-inside: avoid; } }
+@media print { .no-print { display: none !important; } body { padding: 0; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } img { max-width: 100% !important; page-break-inside: avoid; } div[style*="page-break-after"] { page-break-after: always !important; height: auto !important; min-height: 90vh; } div[style*="page-break-after"]:last-child { page-break-after: auto !important; } }
 body { font-family: 'Roboto', -apple-system, BlinkMacSystemFont, Arial, sans-serif; padding: 15px; margin: 0; background: #fff; font-size: 12px; font-weight: 300; color: #3c3c3b; }
 h1 { color: #003C71; font-weight: 700; border-bottom: 2px solid #003C71; padding-bottom: 8px; margin-bottom: 15px; font-size: 20px; }
 h2 { color: #333; font-size: 14px; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 10px; }
