@@ -1801,7 +1801,7 @@ if (ph.annotations && ph.annotations.length) {
     this.editor.photo = ph; this.editor.image = img; this.editor.annotations = ph.annotations;
     src = await this.editor.renderToImage();
 }
-const notesHtml = ph.notes ? `<p style="margin:10px 0 0 0;font-size:16px;color:#475569;font-style:italic;text-align:center">${this.esc(ph.notes)}</p>` : '';
+const notesHtml = ph.notes ? `<p style="margin:10px 0 0 0;font-size:18px;color:#003C71;font-weight:700;text-align:center">${this.esc(ph.notes)}</p>` : '';
 photosHtml += `<div style="page-break-after:always;page-break-inside:avoid;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:0;margin:0"><img src="${src}" style="max-width:100%;max-height:calc(100vh - 40px);object-fit:contain;display:block">${notesHtml}</div>`;
         }
 
