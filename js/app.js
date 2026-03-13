@@ -43,6 +43,8 @@ document.title = 'SiteSketch - ' + userInfo.label;
         }
         this._updateDarkThemeBtn(document.body.classList.contains('dark-theme'));
         this.renderProjectList();
+        // Auto-Sync: Lokale Daten sind schon sichtbar, Cloud im Hintergrund nachladen
+        this._autoSyncFromCloud();
     }
 
     logout() {
@@ -83,6 +85,97 @@ this.renderProjectList();
         } catch(e) { this.toast('Sync-Fehler: ' + e.message, 'error'); }
     }
 
+    // ====== SYNC INDICATOR ======
+    _showSyncIndicator() {
+        let bar = document.getElementById('syncIndicator');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'syncIndicator';
+            bar.className = 'sync-indicator';
+            bar.innerHTML = '<div class="sync-indicator-bar"></div><span class="sync-indicator-text">Synchronisiere...</span>';
+            document.body.appendChild(bar);
+        }
+        bar.classList.add('visible');
+    }
+    _hideSyncIndicator(msg, isError) {
+        const bar = document.getElementById('syncIndicator');
+        if (!bar) return;
+        if (msg) {
+            const txt = bar.querySelector('.sync-indicator-text');
+            if (txt) txt.textContent = msg;
+            bar.querySelector('.sync-indicator-bar')?.classList.add('done');
+        }
+        setTimeout(() => { bar.classList.remove('visible'); bar.querySelector('.sync-indicator-bar')?.classList.remove('done'); }, isError ? 2500 : 1500);
+    }
+
+    // Auto-Sync: lädt Cloud-Daten im Hintergrund mit subtiler Anzeige
+    async _autoSyncFromCloud(silent) {
+        if (!CLOUD.enabled || !CLOUD.user) return;
+        if (this._autoSyncing) return;
+        this._autoSyncing = true;
+        this._showSyncIndicator();
+        try {
+            const cloudProjects = await CLOUD.loadAllProjects();
+            if (!cloudProjects || !Array.isArray(cloudProjects)) {
+                this._hideSyncIndicator('Cloud nicht erreichbar', true);
+                return;
+            }
+            const localProjects = await this.db.getAll('projects');
+            let changed = false, synced = 0;
+            for (const cp of cloudProjects) {
+                const fp = await CLOUD.loadProject(cp.id);
+                if (!fp) continue;
+                const photoMeta = fp._photos || []; delete fp._photos;
+                const localP = localProjects.find(p => p.id === cp.id);
+                const cloudTime = new Date(fp.updatedAt || fp.createdAt || 0).getTime();
+                const localTime = localP ? new Date(localP.updatedAt || localP.createdAt || 0).getTime() : 0;
+                if (!localP || cloudTime > localTime) {
+                    await this.db.put('projects', fp);
+                    changed = true;
+                }
+                for (const pm of photoMeta) {
+                    const lp = await this.db.get('photos', pm.id);
+                    if (!lp || !lp.dataUrl) {
+                        const dataUrl = pm.hasPhoto ? await CLOUD.loadPhoto(cp.id, pm.id) : null;
+                        const po = { ...pm, dataUrl: dataUrl || '', thumbnail: dataUrl ? await this.createThumb(dataUrl, 300) : '' }; delete po.hasPhoto;
+                        await this.db.put('photos', po);
+                        changed = true;
+                    }
+                }
+                synced++;
+            }
+            if (changed) {
+                this.renderProjectList();
+                this._hideSyncIndicator(`${synced} Projekt(e) aktualisiert`);
+            } else {
+                this._hideSyncIndicator('Alles aktuell');
+            }
+        } catch(e) {
+            console.warn('☁️ Auto-Sync Fehler:', e);
+            this._hideSyncIndicator('Sync-Fehler', true);
+        } finally {
+            this._autoSyncing = false;
+        }
+    }
+
+    // ====== IMAGE COMPRESSION (verlustfrei skaliert, hohe JPEG-Qualität) ======
+    compressImage(dataUrl, maxWidth = 1920, quality = 0.85) {
+        return new Promise(r => {
+            const img = new Image();
+            img.onload = () => {
+                // Nur skalieren wenn größer als maxWidth
+                let w = img.width, h = img.height;
+                if (w > maxWidth) { h = Math.round(h * (maxWidth / w)); w = maxWidth; }
+                const c = document.createElement('canvas');
+                c.width = w; c.height = h;
+                c.getContext('2d').drawImage(img, 0, 0, w, h);
+                r(c.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = () => r(dataUrl); // Fallback: Original zurückgeben
+            img.src = dataUrl;
+        });
+    }
+
     showView(id) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById(id + 'View').classList.add('active');
@@ -99,7 +192,7 @@ this.renderProjectList();
         if (fabOverlay) fabOverlay.classList.toggle('hidden', isSubView);
         if (id === 'projectList') { back.classList.remove('visible'); title.textContent = ''; actions.innerHTML = ''; if(qfmLogo) qfmLogo.style.display=''; }
         else if (id === 'projectForm') { back.classList.add('visible'); title.textContent = this.editingId ? 'Bearbeiten' : 'Neues Projekt'; actions.innerHTML = ''; if(qfmLogo) qfmLogo.style.display='none'; }
-        else if (id === 'projectDetail') { back.classList.add('visible'); title.textContent = this.currentProject?.projectName || ''; if(qfmLogo) qfmLogo.style.display='none'; actions.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="app.editProject()" style="padding:6px 8px;min-height:36px"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn btn-secondary btn-sm" onclick="app.deleteProject()" style="padding:6px 8px;min-height:36px;color:#dc2626"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button><button class="btn btn-secondary btn-sm" onclick="app.exportProject()" style="padding:6px 8px;min-height:36px"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button><button class="btn btn-primary btn-sm" onclick="app.exportPDF()" style="padding:6px 10px;min-height:36px">PDF</button>'; }
+        else if (id === 'projectDetail') { back.classList.add('visible'); title.textContent = this.currentProject?.projectName || ''; if(qfmLogo) qfmLogo.style.display='none'; actions.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="app.editProject()" style="padding:6px 8px;min-height:36px"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="btn btn-secondary btn-sm" onclick="app.shareProject()" style="padding:6px 8px;min-height:36px" title="Teilen"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button><button class="btn btn-secondary btn-sm" onclick="app.deleteProject()" style="padding:6px 8px;min-height:36px;color:#dc2626"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button><button class="btn btn-secondary btn-sm" onclick="app.exportProject()" style="padding:6px 8px;min-height:36px"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button><button class="btn btn-primary btn-sm" onclick="app.exportPDF()" style="padding:6px 10px;min-height:36px">PDF</button>'; }
         else if (id === 'settings') { back.classList.remove('visible'); title.textContent = ''; actions.innerHTML = ''; if(qfmLogo) qfmLogo.style.display=''; }
     }
 
@@ -109,6 +202,7 @@ this.renderProjectList();
         if (which === 'projects') {
             this.showView('projectList');
             this.renderProjectList();
+            this._autoSyncFromCloud(true);
         } else if (which === 'settings') {
             this.showView('settings');
             // Sync dark mode toggle
@@ -159,11 +253,19 @@ this.renderProjectList();
             this.toast('Export gespeichert', 'success');
         } catch(e) { this.toast('Export-Fehler: ' + e.message, 'error'); }
     }
-    goBack() { this.showView('projectList'); this.renderProjectList(); }
+    goBack() { this.showView('projectList'); this.renderProjectList(); this._autoSyncFromCloud(true); }
     closePdfOverlay() { const el = document.getElementById('pdfOverlay'); if (el) el.remove(); }
 
     async renderProjectList() {
-        const projects = await this.db.getAll('projects'), grid = document.getElementById('projectGrid');
+        const allProjects = await this.db.getAll('projects'), grid = document.getElementById('projectGrid');
+        const projects = allProjects.filter(p => !p._deleted);
+        // Auto-Cleanup: Projekte >30 Tage im Papierkorb endgültig löschen
+        const trashCutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        for (const p of allProjects.filter(p => p._deleted && new Date(p._deletedAt || 0).getTime() < trashCutoff)) {
+            const photos = await this.db.getByIndex('photos', 'projectId', p.id);
+            for (const ph of photos) await this.db.delete('photos', ph.id);
+            await this.db.delete('projects', p.id); CLOUD.deleteProject(p.id);
+        }
         if (!projects.length) { grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><h3>Keine Projekte</h3><p>Erstellen Sie Ihr erstes Projekt</p><button class="btn btn-primary" onclick="app.showCreateProject()">+ Neues Projekt</button></div>'; return; }
         projects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         grid.innerHTML = projects.map(p => {
@@ -330,24 +432,118 @@ f.creatorCustom.style.display = 'none';
     }
     async deleteProject() {
         if (!this.currentProject) return;
-        const confirmed = confirm(`Projekt "${this.currentProject.projectName}" wirklich löschen?\n\nAlle Fotos werden ebenfalls gelöscht.`);
+        const confirmed = confirm(`Projekt "${this.currentProject.projectName}" in den Papierkorb verschieben?`);
         if (!confirmed) return;
 
         try {
-// Lösche alle Fotos des Projekts
-const photos = await this.db.getByIndex('photos', 'projectId', this.currentProject.id);
-for (const photo of photos) {
-    await this.db.delete('photos', photo.id);
-}
-// Lösche das Projekt
-await this.db.delete('projects', this.currentProject.id);
-CLOUD.deleteProject(this.currentProject.id);
+// Soft-Delete: Markiere als gelöscht statt wirklich zu löschen
+const project = { ...this.currentProject, _deleted: true, _deletedAt: new Date().toISOString() };
+await this.db.put('projects', project);
+const projectName = this.currentProject.projectName;
+const projectId = this.currentProject.id;
 this.currentProject = null;
-this.toast('Projekt gelöscht', 'success');
 this.goBack();
+// Undo-Toast anzeigen
+this._showUndoToast(`"${projectName}" gelöscht`, async () => {
+    const p = await this.db.get('projects', projectId);
+    if (p) { delete p._deleted; delete p._deletedAt; await this.db.put('projects', p); this.renderProjectList(); }
+});
         } catch (err) {
 this.toast('Fehler beim Löschen: ' + err.message, 'error');
         }
+    }
+
+    _showUndoToast(msg, undoFn) {
+        const c = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = 'toast undo-toast';
+        t.innerHTML = `<span>${this.esc(msg)}</span><button class="undo-btn" onclick="event.stopPropagation()">Rückgängig</button>`;
+        const btn = t.querySelector('.undo-btn');
+        let undone = false;
+        btn.addEventListener('click', async () => {
+            if (undone) return; undone = true;
+            await undoFn();
+            t.style.opacity = '0';
+            setTimeout(() => t.remove(), 300);
+            this.toast('Wiederhergestellt', 'success');
+        });
+        c.appendChild(t);
+        setTimeout(() => { if (!undone) { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); } }, 6000);
+    }
+
+    // ====== PAPIERKORB (Trash) ======
+    async showTrash() {
+        const all = await this.db.getAll('projects');
+        const trashed = all.filter(p => p._deleted);
+        const grid = document.getElementById('projectGrid');
+        if (!trashed.length) { this.toast('Papierkorb ist leer', 'info'); return; }
+
+        // Show trash modal
+        let overlay = document.getElementById('trashOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'trashOverlay';
+            overlay.className = 'trash-overlay';
+            document.body.appendChild(overlay);
+        }
+        trashed.sort((a, b) => new Date(b._deletedAt || 0) - new Date(a._deletedAt || 0));
+        overlay.innerHTML = `<div class="trash-modal">
+            <div class="trash-header">
+                <h3 style="margin:0;font-size:18px;font-weight:700">Papierkorb</h3>
+                <button onclick="document.getElementById('trashOverlay').classList.remove('visible')" style="border:none;background:none;font-size:24px;cursor:pointer;color:var(--text);padding:4px 8px">&times;</button>
+            </div>
+            <div class="trash-hint" style="font-size:12px;color:var(--text-muted);padding:0 16px 8px">Projekte werden nach 30 Tagen endgültig gelöscht</div>
+            <div class="trash-list">${trashed.map(p => `
+                <div class="trash-item">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${this.esc(p.projectName)}</div>
+                        <div style="font-size:12px;color:var(--text-muted)">Gelöscht: ${new Date(p._deletedAt).toLocaleDateString('de-DE')}</div>
+                    </div>
+                    <button class="btn btn-sm" onclick="app.restoreProject('${p.id}')" style="font-size:12px;padding:6px 12px;background:var(--ios-green);color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap">Wiederherstellen</button>
+                    <button class="btn btn-sm" onclick="app.permanentDeleteProject('${p.id}')" style="font-size:12px;padding:6px 12px;background:var(--ios-red);color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap">Endgültig</button>
+                </div>`).join('')}
+            </div>
+            <div style="padding:12px 16px">
+                <button onclick="app.emptyTrash()" class="btn" style="width:100%;padding:10px;background:var(--ios-red);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:14px">Papierkorb leeren</button>
+            </div>
+        </div>`;
+        overlay.classList.add('visible');
+    }
+
+    async restoreProject(id) {
+        const p = await this.db.get('projects', id);
+        if (!p) return;
+        delete p._deleted; delete p._deletedAt;
+        await this.db.put('projects', p);
+        this.toast(`"${p.projectName}" wiederhergestellt`, 'success');
+        this.renderProjectList();
+        this.showTrash(); // Refresh trash modal
+    }
+
+    async permanentDeleteProject(id) {
+        if (!confirm('Projekt endgültig löschen? Das kann nicht rückgängig gemacht werden.')) return;
+        const photos = await this.db.getByIndex('photos', 'projectId', id);
+        for (const photo of photos) await this.db.delete('photos', photo.id);
+        await this.db.delete('projects', id);
+        CLOUD.deleteProject(id);
+        this.toast('Endgültig gelöscht', 'success');
+        this.showTrash();
+        this.renderProjectList();
+    }
+
+    async emptyTrash() {
+        if (!confirm('Alle Projekte im Papierkorb endgültig löschen?')) return;
+        const all = await this.db.getAll('projects');
+        const trashed = all.filter(p => p._deleted);
+        for (const p of trashed) {
+            const photos = await this.db.getByIndex('photos', 'projectId', p.id);
+            for (const ph of photos) await this.db.delete('photos', ph.id);
+            await this.db.delete('projects', p.id);
+            CLOUD.deleteProject(p.id);
+        }
+        this.toast(`${trashed.length} Projekt(e) endgültig gelöscht`, 'success');
+        document.getElementById('trashOverlay')?.classList.remove('visible');
+        this.renderProjectList();
     }
     async saveProject(e) {
         e.preventDefault(); const f = e.target;
@@ -589,14 +785,103 @@ if (loc.includes(city)) {
         grid.innerHTML = `<div class="photo-card add-photo-card" onclick="document.getElementById('cameraInput').click()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><br>Aufnehmen</div><div class="photo-card add-photo-card" onclick="document.getElementById('importInput').click()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><br>Importieren</div>`;
         photos.forEach((ph, idx) => {
 const card = document.createElement('div'); card.className = 'photo-card'; card.style.position = 'relative';
+card.setAttribute('draggable', 'true');
+card.setAttribute('data-photo-id', ph.id);
+card.setAttribute('data-sort', idx);
 card.innerHTML = `<img src="${ph.thumbnail || ph.dataUrl}" onclick="app.openEditor('${ph.id}')" style="cursor:pointer;width:100%;height:100%;object-fit:cover">${ph.isMapSnapshot ? '<span class="photo-card-badge">Karte</span>' : ''}
 <div style="position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;gap:4px;padding:4px;background:linear-gradient(transparent,rgba(0,0,0,0.5))">
     ${idx > 0 ? `<button onclick="event.stopPropagation();app.movePhoto('${ph.id}',-1)" style="width:28px;height:28px;border:none;background:rgba(255,255,255,0.85);border-radius:6px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Nach vorne">◀</button>` : ''}
     <span style="color:white;font-size:11px;font-weight:600;padding:4px 6px;text-shadow:0 1px 2px rgba(0,0,0,0.5)">${idx + 1}/${photos.length}</span>
     ${idx < photos.length - 1 ? `<button onclick="event.stopPropagation();app.movePhoto('${ph.id}',1)" style="width:28px;height:28px;border:none;background:rgba(255,255,255,0.85);border-radius:6px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Nach hinten">▶</button>` : ''}
 </div>`;
+// Drag & Drop events
+card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', ph.id); card.classList.add('dragging'); });
+card.addEventListener('dragend', () => { card.classList.remove('dragging'); grid.querySelectorAll('.photo-card').forEach(c => c.classList.remove('drag-over')); });
+card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('drag-over'); });
+card.addEventListener('dragleave', () => { card.classList.remove('drag-over'); });
+card.addEventListener('drop', (e) => { e.preventDefault(); card.classList.remove('drag-over'); const fromId = e.dataTransfer.getData('text/plain'); if (fromId && fromId !== ph.id) app._dropPhoto(fromId, ph.id); });
+// Touch drag support for mobile
+this._initTouchDrag(card, ph.id);
 grid.appendChild(card);
         });
+    }
+
+    _initTouchDrag(card, photoId) {
+        let longPressTimer = null, isDragging = false, clone = null, startX, startY, currentDropTarget = null;
+        const grid = document.getElementById('photoGrid');
+
+        card.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0]; startX = touch.clientX; startY = touch.clientY;
+            longPressTimer = setTimeout(() => {
+                isDragging = true;
+                card.classList.add('dragging');
+                // Create floating clone
+                clone = card.cloneNode(true);
+                clone.className = 'photo-card drag-clone';
+                clone.style.cssText = `position:fixed;width:${card.offsetWidth}px;height:${card.offsetHeight}px;z-index:5000;pointer-events:none;opacity:0.85;transform:scale(1.05);border-radius:var(--radius);overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3);`;
+                clone.style.left = (touch.clientX - card.offsetWidth/2) + 'px';
+                clone.style.top = (touch.clientY - card.offsetHeight/2) + 'px';
+                document.body.appendChild(clone);
+                navigator.vibrate?.(20); // Haptic feedback
+            }, 400);
+        }, { passive: true });
+
+        card.addEventListener('touchmove', (e) => {
+            if (!isDragging && longPressTimer) {
+                const touch = e.touches[0];
+                if (Math.abs(touch.clientX - startX) > 10 || Math.abs(touch.clientY - startY) > 10) {
+                    clearTimeout(longPressTimer); longPressTimer = null;
+                }
+                return;
+            }
+            if (!isDragging) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            if (clone) {
+                clone.style.left = (touch.clientX - clone.offsetWidth/2) + 'px';
+                clone.style.top = (touch.clientY - clone.offsetHeight/2) + 'px';
+            }
+            // Find drop target
+            if (clone) clone.style.display = 'none';
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (clone) clone.style.display = '';
+            const target = el?.closest('.photo-card[data-photo-id]');
+            if (target !== currentDropTarget) {
+                currentDropTarget?.classList.remove('drag-over');
+                currentDropTarget = target;
+                if (target && target.getAttribute('data-photo-id') !== photoId) target.classList.add('drag-over');
+            }
+        }, { passive: false });
+
+        const endDrag = () => {
+            clearTimeout(longPressTimer); longPressTimer = null;
+            if (clone) { clone.remove(); clone = null; }
+            card.classList.remove('dragging');
+            grid?.querySelectorAll('.photo-card').forEach(c => c.classList.remove('drag-over'));
+            if (isDragging && currentDropTarget) {
+                const targetId = currentDropTarget.getAttribute('data-photo-id');
+                if (targetId && targetId !== photoId) this._dropPhoto(photoId, targetId);
+            }
+            isDragging = false; currentDropTarget = null;
+        };
+        card.addEventListener('touchend', endDrag, { passive: true });
+        card.addEventListener('touchcancel', endDrag, { passive: true });
+    }
+
+    async _dropPhoto(fromId, toId) {
+        const photos = await this.db.getByIndex('photos', 'projectId', this.currentProject.id);
+        photos.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        photos.forEach((ph, i) => { if (ph.sortOrder === undefined) ph.sortOrder = i; });
+        const fromIdx = photos.findIndex(p => p.id === fromId);
+        const toIdx = photos.findIndex(p => p.id === toId);
+        if (fromIdx < 0 || toIdx < 0) return;
+        // Move: entferne und füge an neuer Position ein
+        const [moved] = photos.splice(fromIdx, 1);
+        photos.splice(toIdx, 0, moved);
+        // Reassign sortOrder
+        for (let i = 0; i < photos.length; i++) { photos[i].sortOrder = i; await this.db.put('photos', photos[i]); }
+        this.renderPhotoGrid();
+        if (this.currentProject) { const _p = await this.db.getByIndex('photos', 'projectId', this.currentProject.id); CLOUD.saveProject(this.currentProject, _p); }
     }
     async movePhoto(photoId, direction) {
         const photos = await this.db.getByIndex('photos', 'projectId', this.currentProject.id);
@@ -622,7 +907,9 @@ grid.appendChild(card);
         let maxSort = existingPhotos.reduce((max, ph) => Math.max(max, ph.sortOrder || 0), 0);
         for (const f of files) {
 maxSort++;
-const dataUrl = await this.readFile(f), thumb = await this.createThumb(dataUrl, 300);
+const rawDataUrl = await this.readFile(f);
+const dataUrl = await this.compressImage(rawDataUrl, 1920, 0.85);
+const thumb = await this.createThumb(dataUrl, 300);
 await this.db.put('photos', { id: 'ph' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), projectId: this.currentProject.id, name: f.name, dataUrl, thumbnail: thumb, annotations: [], isMapSnapshot: false, mapMetadata: null, createdAt: new Date().toISOString(), sortOrder: maxSort });
         }
         this.toast(files.length + ' Foto(s) hinzugefügt', 'success'); this.renderPhotoGrid();
@@ -1643,6 +1930,51 @@ for (let i = 0; i < 256; i++) {
         const blob = new Blob([JSON.stringify({ version: '1.0', exportedAt: new Date().toISOString(), project: p, photos }, null, 2)], { type: 'application/json' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `SiteSketch_${p.projectNumber || p.id}.json`; a.click();
         this.toast('Exportiert', 'success');
+    }
+
+    // ====== SHARE API ======
+    async shareProject() {
+        if (!this.currentProject) return;
+        const p = this.currentProject;
+
+        // Projekt-Zusammenfassung als Text
+        const text = [
+            `📋 ${p.projectName}`,
+            `Kunde: ${p.customer || '-'}`,
+            p.auftraggeber ? `Auftraggeber: ${p.auftraggeber}` : '',
+            `Adresse: ${p.location || '-'}`,
+            `Projekt-Nr: ${p.projectNumber || '-'}`,
+            `Status: ${{ 'offen': 'Offen', 'in-arbeit': 'In Arbeit', 'abgeschlossen': 'Abgeschlossen' }[p.status] || p.status}`,
+            p.description ? `\nBeschreibung: ${p.description}` : '',
+            `\n— SiteSketch · ${new Date().toLocaleDateString('de-DE')}`
+        ].filter(Boolean).join('\n');
+
+        // Web Share API verfügbar? (Mobile)
+        if (navigator.share) {
+            try {
+                const shareData = { title: p.projectName, text };
+                // Versuche JSON als Datei zu teilen (wenn File-Sharing unterstützt)
+                const photos = await this.db.getByIndex('photos', 'projectId', p.id);
+                const jsonBlob = new Blob([JSON.stringify({ version: '1.0', exportedAt: new Date().toISOString(), project: p, photos }, null, 2)], { type: 'application/json' });
+                const file = new File([jsonBlob], `SiteSketch_${p.projectNumber || p.id}.json`, { type: 'application/json' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    shareData.files = [file];
+                }
+                await navigator.share(shareData);
+            } catch(e) {
+                if (e.name !== 'AbortError') this.toast('Teilen fehlgeschlagen', 'error');
+            }
+        } else {
+            // Fallback: In Zwischenablage kopieren
+            try {
+                await navigator.clipboard.writeText(text);
+                this.toast('In Zwischenablage kopiert', 'success');
+            } catch(e) {
+                // Letzer Fallback
+                const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+                this.toast('In Zwischenablage kopiert', 'success');
+            }
+        }
     }
     async handleJsonImport(e) {
         const f = e.target.files[0]; if (!f) return;
