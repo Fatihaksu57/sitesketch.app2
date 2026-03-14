@@ -1,6 +1,6 @@
 // MAIN APP
 class App {
-    constructor() { this.db = new Database(); this.map = null; this.editor = new Editor(); this.currentProject = null; this.currentPhoto = null; this.tempContacts = []; this.editingId = null; this._locationTimer = null; this._locationReqId = 0; this._locationResults = []; this.currentUser = null; }
+    constructor() { this.db = new Database(); this.map = null; this.editor = new Editor(); this.currentProject = null; this.currentPhoto = null; this.tempContacts = []; this.editingId = null; this._locationTimer = null; this._locationReqId = 0; this._locationResults = []; this.currentUser = null; this.isGuest = false; }
     async init() {
         await this.db.init();
         this._applyDarkTheme(localStorage.getItem('sitesketch_dark_theme') === 'true');
@@ -37,9 +37,11 @@ localStorage.setItem('sitesketch_pass', pass);
     _showApp() {
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
-        const userInfo = USERS[this.currentUser];
-        if (userInfo) {
-document.title = 'SiteSketch - ' + userInfo.label;
+        if (this.isGuest) {
+            document.title = 'SiteSketch - Testmodus';
+        } else {
+            const userInfo = USERS[this.currentUser];
+            if (userInfo) document.title = 'SiteSketch - ' + userInfo.label;
         }
         this._updateDarkThemeBtn(document.body.classList.contains('dark-theme'));
         this.renderProjectList();
@@ -51,12 +53,24 @@ document.title = 'SiteSketch - ' + userInfo.label;
         localStorage.removeItem('sitesketch_user');
         localStorage.removeItem('sitesketch_pass');
         this.currentUser = null;
+        this.isGuest = false;
         CLOUD.user = null;
+        CLOUD.enabled = true; // Cloud wieder aktivieren für nächsten Login
         document.getElementById('app').style.display = 'none';
         document.getElementById('loginScreen').style.display = 'flex';
         document.getElementById('loginUser').value = '';
         document.getElementById('loginPass').value = '';
         document.getElementById('loginError').style.display = 'none';
+    }
+
+    guestLogin() {
+        this.currentUser = '_guest';
+        this.isGuest = true;
+        CLOUD.user = null; // Kein Cloud-Sync im Gastmodus
+        CLOUD.enabled = false;
+        document.title = 'SiteSketch - Testmodus';
+        this._showApp();
+        this.toast('Testmodus – Daten nur lokal gespeichert', 'info');
     }
 
     async syncFromCloud() {
@@ -270,17 +284,103 @@ this.renderProjectList();
         projects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         grid.innerHTML = projects.map(p => {
 const st = { 'offen': 'Offen', 'in-arbeit': 'In Arbeit', 'abgeschlossen': 'Abgeschlossen' }[p.status] || p.status;
-return `<div class="project-card" data-auftraggeber="${this.esc(p.auftraggeber || '')}" onclick="app.openProject('${p.id}')"><div class="project-card-header"><div class="project-card-title">${this.esc(p.projectName)}</div><div class="project-card-subtitle">${this.esc(p.customer)}${p.auftraggeber ? ' <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:4px;margin-left:6px">' + this.esc(p.auftraggeber) + '</span>' : ''}</div></div><div class="project-card-meta"><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${new Date(p.createdAt).toLocaleDateString('de-DE')}</span><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${this.esc(p.location || '')}</span></div><div class="project-card-actions"><select class="project-status-select status-${p.status}" onclick="event.stopPropagation()" onchange="app.changeProjectStatus('${p.id}',this.value)"><option value="offen"${p.status==='offen'?' selected':''}>Offen</option><option value="in-arbeit"${p.status==='in-arbeit'?' selected':''}>In Arbeit</option><option value="abgeschlossen"${p.status==='abgeschlossen'?' selected':''}>Abgeschlossen</option></select><button class="project-action-btn" onclick="event.stopPropagation();app.exportProject('${p.id}')" title="Speichern"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button><button class="project-action-btn" onclick="event.stopPropagation();app.deleteProjectFromList('${p.id}')" title="Löschen" style="color:var(--danger)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div>`;
+return `<div class="swipe-container" data-project-id="${p.id}"><div class="swipe-actions-bg"><span class="swipe-action-label">Löschen</span></div><div class="project-card swipe-card" data-auftraggeber="${this.esc(p.auftraggeber || '')}" onclick="app.openProject('${p.id}')"><div class="project-card-header"><div class="project-card-title">${this.esc(p.projectName)}</div><div class="project-card-subtitle">${this.esc(p.customer)}${p.auftraggeber ? ' <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:4px;margin-left:6px">' + this.esc(p.auftraggeber) + '</span>' : ''}</div></div><div class="project-card-meta"><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${new Date(p.createdAt).toLocaleDateString('de-DE')}</span><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${this.esc(p.location || '')}</span></div><div class="project-card-actions"><select class="project-status-select status-${p.status}" onclick="event.stopPropagation()" onchange="app.changeProjectStatus('${p.id}',this.value)"><option value="offen"${p.status==='offen'?' selected':''}>Offen</option><option value="in-arbeit"${p.status==='in-arbeit'?' selected':''}>In Arbeit</option><option value="abgeschlossen"${p.status==='abgeschlossen'?' selected':''}>Abgeschlossen</option></select><button class="project-action-btn" onclick="event.stopPropagation();app.exportProject('${p.id}')" title="Speichern"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button><button class="project-action-btn" onclick="event.stopPropagation();app.deleteProjectFromList('${p.id}')" title="Löschen" style="color:var(--danger)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div></div>`;
         }).join('');
+        // Init swipe-to-delete on all cards
+        this._initSwipeToDelete();
+        // Populate dynamic auftraggeber filters
+        this._populateAuftraggeberFilters();
     }
     filterProjects() {
         const s = document.getElementById('searchInput').value.toLowerCase(), st = document.getElementById('statusFilter').value, ag = document.getElementById('auftraggeberFilter').value;
-        document.querySelectorAll('.project-card').forEach(c => {
+        document.querySelectorAll('.swipe-container').forEach(sw => {
+const c = sw.querySelector('.project-card');
+if (!c) return;
 const t = (c.querySelector('.project-card-title')?.textContent || '').toLowerCase(), sub = (c.querySelector('.project-card-subtitle')?.textContent || '').toLowerCase();
 const cardAg = c.getAttribute('data-auftraggeber') || '';
 const statusSel = c.querySelector('.project-status-select');
 const cardStatus = statusSel ? statusSel.value : '';
-c.style.display = (!s || t.includes(s) || sub.includes(s)) && (!st || cardStatus === st) && (!ag || cardAg === ag) ? '' : 'none';
+sw.style.display = (!s || t.includes(s) || sub.includes(s)) && (!st || cardStatus === st) && (!ag || cardAg === ag) ? '' : 'none';
+        });
+    }
+
+    // ====== SWIPE-TO-DELETE (iOS-style) ======
+    _initSwipeToDelete() {
+        document.querySelectorAll('.swipe-container').forEach(container => {
+            const card = container.querySelector('.swipe-card');
+            if (!card || card._swipeInit) return;
+            card._swipeInit = true;
+            let startX = 0, startY = 0, currentX = 0, swiping = false, locked = false;
+            const THRESHOLD = 80, DELETE_THRESHOLD = 160;
+
+            card.addEventListener('touchstart', (e) => {
+                // Nicht swipen wenn Select/Button berührt wird
+                if (e.target.closest('select, button')) return;
+                const t = e.touches[0]; startX = t.clientX; startY = t.clientY;
+                currentX = 0; swiping = false; locked = false;
+                card.style.transition = 'none';
+            }, { passive: true });
+
+            card.addEventListener('touchmove', (e) => {
+                if (locked) return;
+                const t = e.touches[0];
+                const dx = t.clientX - startX, dy = t.clientY - startY;
+                // Entscheide: horizontal swipe oder vertikales scrollen?
+                if (!swiping && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { locked = true; return; }
+                if (Math.abs(dx) > 10) swiping = true;
+                if (!swiping) return;
+                e.preventDefault();
+                // Nur nach links erlauben
+                currentX = Math.min(0, dx);
+                card.style.transform = `translateX(${currentX}px)`;
+                // Hintergrund-Aktion sichtbar machen
+                const bg = container.querySelector('.swipe-actions-bg');
+                if (bg) {
+                    const progress = Math.min(Math.abs(currentX) / DELETE_THRESHOLD, 1);
+                    bg.style.opacity = progress;
+                    if (Math.abs(currentX) >= THRESHOLD) bg.classList.add('active');
+                    else bg.classList.remove('active');
+                }
+            }, { passive: false });
+
+            card.addEventListener('touchend', () => {
+                if (!swiping) return;
+                card.style.transition = 'transform 0.3s cubic-bezier(0.23,1,0.32,1)';
+                const bg = container.querySelector('.swipe-actions-bg');
+                if (Math.abs(currentX) >= DELETE_THRESHOLD) {
+                    // Volles Löschen: Karte rausschieben
+                    card.style.transform = 'translateX(-110%)';
+                    const pid = container.getAttribute('data-project-id');
+                    setTimeout(() => {
+                        container.style.transition = 'height 0.3s, opacity 0.3s, margin 0.3s';
+                        container.style.height = '0'; container.style.opacity = '0'; container.style.margin = '0'; container.style.overflow = 'hidden';
+                        setTimeout(() => this.deleteProjectFromList(pid), 300);
+                    }, 150);
+                } else if (Math.abs(currentX) >= THRESHOLD) {
+                    // Teilswipe: zeige Löschen-Button
+                    card.style.transform = `translateX(-${THRESHOLD}px)`;
+                    // Tippe auf Hintergrund zum Löschen
+                    if (bg) {
+                        bg.onclick = () => {
+                            const pid = container.getAttribute('data-project-id');
+                            card.style.transform = 'translateX(-110%)';
+                            setTimeout(() => this.deleteProjectFromList(pid), 250);
+                        };
+                    }
+                    // Klick woanders: zurücksetzen
+                    const reset = (ev) => {
+                        if (!container.contains(ev.target)) {
+                            card.style.transform = 'translateX(0)'; if (bg) bg.classList.remove('active');
+                            document.removeEventListener('touchstart', reset);
+                        }
+                    };
+                    setTimeout(() => document.addEventListener('touchstart', reset), 50);
+                } else {
+                    card.style.transform = 'translateX(0)';
+                    if (bg) bg.classList.remove('active');
+                }
+                swiping = false;
+            }, { passive: true });
         });
     }
 
@@ -322,7 +422,54 @@ c.style.display = (!s || t.includes(s) || sub.includes(s)) && (!st || cardStatus
         // Legacy — no-op, header button removed
     }
 
-    showCreateProject() { this.editingId = null; this.tempContacts = []; document.getElementById('projectForm').reset(); this.renderContactList(); if (this.currentUser && USERS[this.currentUser]) { document.getElementById('auftraggeberSelect').value = USERS[this.currentUser].auftraggeber; } this.showView('projectForm'); }
+    showCreateProject() { this.editingId = null; this.tempContacts = []; document.getElementById('projectForm').reset(); this.renderContactList(); this._populateAuftraggeberSelect(); document.getElementById('auftraggeberCustom').style.display = 'none'; this.showView('projectForm'); }
+
+    // ====== DYNAMISCHE AUFTRAGGEBER ======
+    _getAuftraggeberList() {
+        const saved = JSON.parse(localStorage.getItem('sitesketch_auftraggeber') || '[]');
+        // Immer Standardwerte mit einbeziehen
+        const defaults = ['1&1 Versatel', 'Vodafone'];
+        const all = [...new Set([...defaults, ...saved])];
+        return all.sort();
+    }
+    _saveAuftraggeber(name) {
+        if (!name) return;
+        const list = JSON.parse(localStorage.getItem('sitesketch_auftraggeber') || '[]');
+        if (!list.includes(name)) { list.push(name); localStorage.setItem('sitesketch_auftraggeber', JSON.stringify(list)); }
+    }
+    _populateAuftraggeberSelect(selected) {
+        const sel = document.getElementById('auftraggeberSelect');
+        const current = selected || sel.value;
+        // Behalte nur erste Option + "_custom" und fülle dynamisch
+        sel.innerHTML = '<option value="">-- Bitte wählen --</option>';
+        this._getAuftraggeberList().forEach(ag => {
+            sel.innerHTML += `<option value="${this.esc(ag)}"${ag === current ? ' selected' : ''}>${this.esc(ag)}</option>`;
+        });
+        sel.innerHTML += '<option value="_custom">+ Neuer Auftraggeber...</option>';
+    }
+    _populateAuftraggeberFilters() {
+        const list = this._getAuftraggeberList();
+        // Auch aus existierenden Projekten sammeln
+        this.db.getAll('projects').then(projects => {
+            const fromProjects = projects.filter(p => !p._deleted && p.auftraggeber).map(p => p.auftraggeber);
+            const all = [...new Set([...list, ...fromProjects])].sort();
+            const filterHidden = document.getElementById('auftraggeberFilter');
+            const filterVisible = document.getElementById('auftraggeberFilterVisible');
+            const currentH = filterHidden?.value || '';
+            const currentV = filterVisible?.value || '';
+            if (filterHidden) {
+                filterHidden.innerHTML = '<option value="">Alle Auftraggeber</option>' + all.map(ag => `<option value="${this.esc(ag)}"${ag === currentH ? ' selected' : ''}>${this.esc(ag)}</option>`).join('');
+            }
+            if (filterVisible) {
+                filterVisible.innerHTML = '<option value="">Alle</option>' + all.map(ag => `<option value="${this.esc(ag)}"${ag === currentV ? ' selected' : ''}>${this.esc(ag)}</option>`).join('');
+            }
+        });
+    }
+    onAuftraggeberChange(sel) {
+        const custom = document.getElementById('auftraggeberCustom');
+        if (sel.value === '_custom') { custom.style.display = 'block'; custom.focus(); sel.value = ''; }
+        else { custom.style.display = 'none'; }
+    }
 
     autoFillProject() {
         const f = document.getElementById('projectForm');
@@ -407,7 +554,8 @@ return { name: parts[0] || '', email: parts[1] || '', phone: parts[2] || '' };
         const f = document.getElementById('projectForm');
         f.projectNumber.value = this.currentProject.projectNumber || ''; f.projectName.value = this.currentProject.projectName || ''; f.customer.value = this.currentProject.customer || '';
         f.status.value = this.currentProject.status || 'offen'; f.description.value = this.currentProject.description || '';
-        f.auftraggeber.value = this.currentProject.auftraggeber || '';
+        this._populateAuftraggeberSelect(this.currentProject.auftraggeber || '');
+        document.getElementById('auftraggeberCustom').style.display = 'none';
         f.location.value = this.currentProject.location || '';
         // Ersteller aus gespeicherten Daten setzen
         const savedCreator = this.currentProject.creator || '';
@@ -548,7 +696,14 @@ this.toast('Fehler beim Löschen: ' + err.message, 'error');
     async saveProject(e) {
         e.preventDefault(); const f = e.target;
         const creatorData = this.getCreatorData();
-        const p = { id: this.editingId || 'p' + Date.now(), projectNumber: f.projectNumber.value, projectName: f.projectName.value, customer: f.customer.value, auftraggeber: f.auftraggeber.value, status: f.status.value, description: f.description.value, location: f.location.value, creator: creatorData.name, creatorEmail: creatorData.email, creatorPhone: creatorData.phone, contacts: this.tempContacts, owner: this.currentUser, lat: null, lon: null, createdAt: this.editingId ? (this.currentProject?.createdAt || new Date().toISOString()) : new Date().toISOString(), updatedAt: new Date().toISOString() };
+        // Auftraggeber: Custom-Feld oder Select
+        let auftraggeber = f.auftraggeber.value;
+        const customAg = document.getElementById('auftraggeberCustom');
+        if ((!auftraggeber || auftraggeber === '_custom') && customAg && customAg.value.trim()) {
+            auftraggeber = customAg.value.trim();
+            this._saveAuftraggeber(auftraggeber);
+        }
+        const p = { id: this.editingId || 'p' + Date.now(), projectNumber: f.projectNumber.value, projectName: f.projectName.value, customer: f.customer.value, auftraggeber, status: f.status.value, description: f.description.value, location: f.location.value, creator: creatorData.name, creatorEmail: creatorData.email, creatorPhone: creatorData.phone, contacts: this.tempContacts, owner: this.currentUser, lat: null, lon: null, createdAt: this.editingId ? (this.currentProject?.createdAt || new Date().toISOString()) : new Date().toISOString(), updatedAt: new Date().toISOString() };
 
         // Versuche Online-Geocoding mit Fallback-Kette
         try {
@@ -770,7 +925,7 @@ if (loc.includes(city)) {
     switchTab(tab) {
         document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === tab + 'Tab'));
-        if (tab === 'photos') this.renderPhotoGrid(); else if (tab === 'map') this.initMap(); else if (tab === 'quantities') this.renderQuantityTable(); else if (tab === 'notes') this.initNotepad();
+        if (tab === 'photos') { this.renderPhotoGrid(); this.initPhotoDropZone(); } else if (tab === 'map') this.initMap(); else if (tab === 'quantities') this.renderQuantityTable(); else if (tab === 'notes') this.initNotepad();
     }
 
     async renderPhotoGrid() {
@@ -902,6 +1057,40 @@ grid.appendChild(card);
     }
     async handlePhotoCapture(e) { if (e.target.files.length) { await this.addPhotos(e.target.files); e.target.value = ''; } }
     async handlePhotoImport(e) { if (e.target.files.length) { await this.addPhotos(e.target.files); e.target.value = ''; } }
+
+    // ====== PHOTO DROP ZONE (Datei per Drag & Drop einfügen) ======
+    initPhotoDropZone() {
+        const zone = document.getElementById('photoDropZone');
+        const overlay = document.getElementById('photoDropOverlay');
+        if (!zone || !overlay) return;
+        let dragCounter = 0;
+        zone.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            // Nur reagieren wenn es externe Dateien sind (nicht interne Foto-Sortierung)
+            if (e.dataTransfer.types.includes('Files')) {
+                dragCounter++;
+                overlay.classList.add('visible');
+            }
+        });
+        zone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0) { dragCounter = 0; overlay.classList.remove('visible'); }
+        });
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.types.includes('Files')) e.dataTransfer.dropEffect = 'copy';
+        });
+        zone.addEventListener('drop', async (e) => {
+            e.preventDefault(); dragCounter = 0; overlay.classList.remove('visible');
+            const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+            if (files.length && this.currentProject) {
+                await this.addPhotos(files);
+            } else if (e.dataTransfer.files.length) {
+                this.toast('Nur Bilddateien werden unterstützt', 'error');
+            }
+        });
+    }
     async addPhotos(files) {
         const existingPhotos = await this.db.getByIndex('photos', 'projectId', this.currentProject.id);
         let maxSort = existingPhotos.reduce((max, ph) => Math.max(max, ph.sortOrder || 0), 0);
