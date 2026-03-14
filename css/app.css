@@ -1077,3 +1077,62 @@
         @media (min-width: 768px) {
             .trash-modal { border-radius: 20px; margin-bottom: 20vh; }
         }
+
+        /* ====== PHOTO DROP ZONE ====== */
+        .photo-drop-zone { position: relative; min-height: 120px; }
+        .photo-drop-overlay {
+            position: absolute; inset: 0; z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(237,109,15,0.08);
+            border: 2.5px dashed var(--ios-orange);
+            border-radius: var(--radius-lg);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s, transform 0.25s;
+            transform: scale(0.98);
+        }
+        .photo-drop-overlay.visible {
+            opacity: 1; pointer-events: auto;
+            transform: scale(1);
+            animation: dropPulse 1.5s ease-in-out infinite;
+        }
+        .photo-drop-content {
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            color: var(--ios-orange); font-size: 15px; font-weight: 600;
+        }
+        .photo-drop-content svg {
+            animation: dropBounce 1s ease-in-out infinite;
+        }
+        @keyframes dropPulse {
+            0%, 100% { background: rgba(237,109,15,0.06); }
+            50% { background: rgba(237,109,15,0.14); }
+        }
+        @keyframes dropBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(6px); }
+        }
+
+        /* ====== SWIPE-TO-DELETE ====== */
+        .swipe-container {
+            position: relative; overflow: hidden;
+            border-radius: var(--radius-lg);
+        }
+        .swipe-actions-bg {
+            position: absolute; inset: 0;
+            background: var(--ios-red);
+            display: flex; align-items: center; justify-content: flex-end;
+            padding-right: 24px; border-radius: var(--radius-lg);
+            opacity: 0; transition: opacity 0.15s;
+        }
+        .swipe-actions-bg.active { opacity: 1; }
+        .swipe-action-label {
+            color: white; font-weight: 700; font-size: 14px;
+            letter-spacing: 0.02em;
+        }
+        .swipe-card {
+            position: relative; z-index: 1;
+            will-change: transform;
+        }
+        @media (min-width: 768px) {
+            /* Swipe nur auf Touch-Geräten sinnvoll, auf Desktop verstecken */
+            .swipe-actions-bg { display: none; }
+        }
