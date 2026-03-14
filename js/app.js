@@ -475,8 +475,8 @@ sw.style.display = (!s || t.includes(s) || sub.includes(s)) && (!st || cardStatu
         const f = document.getElementById('projectForm');
         const projektNr = 'P123456';
         f.projectNumber.value = projektNr;
-        f.customer.value = 'Nhas City Chicken';
-        f.location.value = 'Karl-Marx-Platz 3, 12043 Berlin';
+        f.customer.value = 'Plan 305 GmbH';
+        f.location.value = 'Hermann-Gebauer-Straße 5, 15831 Blankenfelde-Mahlow';
         f.status.value = 'offen';
         f.description.value = 'Neuverlegung Glasfaser-Hausanschluss';
 
