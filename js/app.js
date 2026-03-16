@@ -4,33 +4,46 @@ class App {
     async init() {
         await this.db.init();
         this._applyDarkTheme(localStorage.getItem('sitesketch_dark_theme') === 'true');
-        // Check saved login
+        // Check saved login (Session-Token, kein Klartext-Passwort)
         const savedUser = localStorage.getItem('sitesketch_user');
-        const savedPass = localStorage.getItem('sitesketch_pass');
-        if (savedUser && savedPass && USERS[savedUser] && USERS[savedUser].password === savedPass) {
+        const savedSession = localStorage.getItem('sitesketch_session');
+        // Migration: altes Klartext-Passwort entfernen
+        if (localStorage.getItem('sitesketch_pass')) {
+localStorage.removeItem('sitesketch_pass');
+localStorage.removeItem('sitesketch_session');
+localStorage.removeItem('sitesketch_user');
+        }
+        if (savedUser && savedSession && USERS[savedUser]) {
 this.currentUser = savedUser;
 CLOUD.user = savedUser;
+CLOUD.setAuth(savedSession);
 this._showApp();
         } else {
 document.getElementById('loginScreen').style.display = 'flex';
         }
     }
 
-    doLogin() {
+    async doLogin() {
         const user = document.getElementById('loginUser').value.trim().toLowerCase();
         const pass = document.getElementById('loginPass').value;
         const err = document.getElementById('loginError');
-        if (!USERS[user] || USERS[user].password !== pass) {
+        const passHash = await hashPassword(pass);
+        if (!USERS[user] || USERS[user].passwordHash !== passHash) {
 err.textContent = 'Benutzername oder Passwort falsch';
 err.style.display = 'block';
 return;
         }
         this.currentUser = user;
         CLOUD.user = user;
+        // API-Key aus verschlüsseltem Wert entschlüsseln (XOR mit Passwort-Hash)
+        const apiKey = decryptApiKey(USERS[user].encryptedKey, passHash);
+        CLOUD.setAuth(apiKey);
         if (document.getElementById('loginRemember').checked) {
 localStorage.setItem('sitesketch_user', user);
-localStorage.setItem('sitesketch_pass', pass);
+localStorage.setItem('sitesketch_session', apiKey);
         }
+        // Klartext-Passwort aus alten Versionen entfernen
+        localStorage.removeItem('sitesketch_pass');
         this._showApp();
     }
 
@@ -51,11 +64,13 @@ localStorage.setItem('sitesketch_pass', pass);
 
     logout() {
         localStorage.removeItem('sitesketch_user');
-        localStorage.removeItem('sitesketch_pass');
+        localStorage.removeItem('sitesketch_session');
+        localStorage.removeItem('sitesketch_pass'); // Legacy cleanup
         this.currentUser = null;
         this.isGuest = false;
         CLOUD.user = null;
-        CLOUD.enabled = true; // Cloud wieder aktivieren für nächsten Login
+        CLOUD.setAuth(null);
+        CLOUD.enabled = true;
         document.getElementById('app').style.display = 'none';
         document.getElementById('loginScreen').style.display = 'flex';
         document.getElementById('loginUser').value = '';
@@ -84,6 +99,8 @@ for (const cp of cloudProjects) {
     if (!fp) continue;
     const photoMeta = fp._photos || []; delete fp._photos;
     await this.db.put('projects', fp);
+    // Sofort rendern damit das Projekt direkt erscheint
+    this.renderProjectList();
     for (const pm of photoMeta) {
         const lp = await this.db.get('photos', pm.id);
         if (!lp || !lp.dataUrl) {
@@ -146,6 +163,8 @@ this.renderProjectList();
                 if (!localP || cloudTime > localTime) {
                     await this.db.put('projects', fp);
                     changed = true;
+                    // Sofort rendern damit das Projekt direkt erscheint
+                    this.renderProjectList();
                 }
                 for (const pm of photoMeta) {
                     const lp = await this.db.get('photos', pm.id);
@@ -153,7 +172,6 @@ this.renderProjectList();
                         const dataUrl = pm.hasPhoto ? await CLOUD.loadPhoto(cp.id, pm.id) : null;
                         const po = { ...pm, dataUrl: dataUrl || '', thumbnail: dataUrl ? await this.createThumb(dataUrl, 300) : '' }; delete po.hasPhoto;
                         await this.db.put('photos', po);
-                        changed = true;
                     }
                 }
                 synced++;
@@ -272,7 +290,7 @@ this.renderProjectList();
 
     async renderProjectList() {
         const allProjects = await this.db.getAll('projects'), grid = document.getElementById('projectGrid');
-        const projects = allProjects.filter(p => !p._deleted);
+        const projects = allProjects.filter(p => !p._deleted && !p._archived);
         // Auto-Cleanup: Projekte >30 Tage im Papierkorb endgültig löschen
         const trashCutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
         for (const p of allProjects.filter(p => p._deleted && new Date(p._deletedAt || 0).getTime() < trashCutoff)) {
@@ -284,7 +302,7 @@ this.renderProjectList();
         projects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         grid.innerHTML = projects.map(p => {
 const st = { 'offen': 'Offen', 'in-arbeit': 'In Arbeit', 'abgeschlossen': 'Abgeschlossen' }[p.status] || p.status;
-return `<div class="swipe-container" data-project-id="${p.id}"><div class="swipe-actions-bg"><span class="swipe-action-label">Löschen</span></div><div class="project-card swipe-card" data-auftraggeber="${this.esc(p.auftraggeber || '')}" onclick="app.openProject('${p.id}')"><div class="project-card-header"><div class="project-card-title">${this.esc(p.projectName)}</div><div class="project-card-subtitle">${this.esc(p.customer)}${p.auftraggeber ? ' <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:4px;margin-left:6px">' + this.esc(p.auftraggeber) + '</span>' : ''}</div></div><div class="project-card-meta"><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${new Date(p.createdAt).toLocaleDateString('de-DE')}</span><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${this.esc(p.location || '')}</span></div><div class="project-card-actions"><select class="project-status-select status-${p.status}" onclick="event.stopPropagation()" onchange="app.changeProjectStatus('${p.id}',this.value)"><option value="offen"${p.status==='offen'?' selected':''}>Offen</option><option value="in-arbeit"${p.status==='in-arbeit'?' selected':''}>In Arbeit</option><option value="abgeschlossen"${p.status==='abgeschlossen'?' selected':''}>Abgeschlossen</option></select><button class="project-action-btn" onclick="event.stopPropagation();app.exportProject('${p.id}')" title="Speichern"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button><button class="project-action-btn" onclick="event.stopPropagation();app.deleteProjectFromList('${p.id}')" title="Löschen" style="color:var(--danger)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div></div>`;
+return `<div class="swipe-container" data-project-id="${p.id}"><div class="swipe-actions-bg"><span class="swipe-action-label">Löschen</span></div><div class="project-card swipe-card" data-auftraggeber="${this.esc(p.auftraggeber || '')}" onclick="app.openProject('${p.id}')"><div class="project-card-header"><div class="project-card-title">${this.esc(p.projectName)}</div><div class="project-card-subtitle">${this.esc(p.customer)}${p.auftraggeber ? ' <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:2px 6px;border-radius:4px;margin-left:6px">' + this.esc(p.auftraggeber) + '</span>' : ''}</div></div><div class="project-card-meta"><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${new Date(p.createdAt).toLocaleDateString('de-DE')}</span><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${this.esc(p.location || '')}</span></div><div class="project-card-actions"><select class="project-status-select status-${p.status}" onclick="event.stopPropagation()" onchange="app.changeProjectStatus('${p.id}',this.value)"><option value="offen"${p.status==='offen'?' selected':''}>Offen</option><option value="in-arbeit"${p.status==='in-arbeit'?' selected':''}>In Arbeit</option><option value="abgeschlossen"${p.status==='abgeschlossen'?' selected':''}>Abgeschlossen</option></select><button class="project-action-btn" onclick="event.stopPropagation();app.exportProject('${p.id}')" title="Speichern"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button><button class="project-action-btn" onclick="event.stopPropagation();app.archiveProject('${p.id}')" title="Archivieren"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ed6d0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button><button class="project-action-btn" onclick="event.stopPropagation();app.deleteProjectFromList('${p.id}')" title="Löschen" style="color:var(--danger)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div></div>`;
         }).join('');
         // Init swipe-to-delete on all cards
         this._initSwipeToDelete();
@@ -693,6 +711,87 @@ this.toast('Fehler beim Löschen: ' + err.message, 'error');
         document.getElementById('trashOverlay')?.classList.remove('visible');
         this.renderProjectList();
     }
+
+    // ====== ARCHIV ======
+    async archiveProject(id) {
+        const p = await this.db.get('projects', id);
+        if (!p) return;
+        p._archived = true;
+        p._archivedAt = new Date().toISOString();
+        await this.db.put('projects', p);
+        const photos = await this.db.getByIndex('photos', 'projectId', p.id);
+        CLOUD.saveProject(p, photos);
+        this.toast(`"${p.projectName}" archiviert`, 'success');
+        this.renderProjectList();
+    }
+
+    async unarchiveProject(id) {
+        const p = await this.db.get('projects', id);
+        if (!p) return;
+        delete p._archived;
+        delete p._archivedAt;
+        await this.db.put('projects', p);
+        const photos = await this.db.getByIndex('photos', 'projectId', p.id);
+        CLOUD.saveProject(p, photos);
+        this.toast(`"${p.projectName}" wiederhergestellt`, 'success');
+        this.renderProjectList();
+        this.showArchive();
+    }
+
+    async showArchive() {
+        const all = await this.db.getAll('projects');
+        const archived = all.filter(p => p._archived && !p._deleted);
+        let overlay = document.getElementById('archiveOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'archiveOverlay';
+            overlay.className = 'trash-overlay';
+            document.body.appendChild(overlay);
+        }
+        if (!archived.length) {
+            overlay.innerHTML = `<div class="trash-modal">
+                <div class="trash-header">
+                    <h3 style="margin:0;font-size:18px;font-weight:700">Archiv</h3>
+                    <button onclick="document.getElementById('archiveOverlay').classList.remove('visible')" style="border:none;background:none;font-size:24px;cursor:pointer;color:var(--text);padding:4px 8px">&times;</button>
+                </div>
+                <div style="padding:40px 16px;text-align:center;color:var(--text-muted)">
+                    <p style="font-size:14px">Keine archivierten Projekte</p>
+                </div>
+            </div>`;
+            overlay.classList.add('visible');
+            return;
+        }
+        archived.sort((a, b) => new Date(b._archivedAt || 0) - new Date(a._archivedAt || 0));
+        overlay.innerHTML = `<div class="trash-modal">
+            <div class="trash-header">
+                <h3 style="margin:0;font-size:18px;font-weight:700">Archiv</h3>
+                <button onclick="document.getElementById('archiveOverlay').classList.remove('visible')" style="border:none;background:none;font-size:24px;cursor:pointer;color:var(--text);padding:4px 8px">&times;</button>
+            </div>
+            <div class="trash-hint" style="font-size:12px;color:var(--text-muted);padding:0 16px 8px">Archivierte Projekte laden keine Bilder bis sie wiederhergestellt werden</div>
+            <div class="trash-list">${archived.map(p => `
+                <div class="trash-item">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${this.esc(p.projectName)}</div>
+                        <div style="font-size:12px;color:var(--text-muted)">${this.esc(p.customer || '')} · Archiviert: ${new Date(p._archivedAt).toLocaleDateString('de-DE')}</div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${this.esc(p.location || '')}</div>
+                    </div>
+                    <button class="btn btn-sm" onclick="app.openArchivedProject('${p.id}')" style="font-size:12px;padding:6px 10px;background:var(--primary-light);color:var(--primary);border:none;border-radius:8px;cursor:pointer;white-space:nowrap;margin-right:6px">Öffnen</button>
+                    <button class="btn btn-sm" onclick="app.unarchiveProject('${p.id}')" style="font-size:12px;padding:6px 12px;background:var(--ios-green);color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap">Wiederherstellen</button>
+                </div>`).join('')}
+            </div>
+        </div>`;
+        overlay.classList.add('visible');
+    }
+
+    async openArchivedProject(id) {
+        document.getElementById('archiveOverlay')?.classList.remove('visible');
+        const p = await this.db.get('projects', id);
+        if (!p) { this.toast('Nicht gefunden', 'error'); return; }
+        this.currentProject = p;
+        this.showView('projectDetail');
+        this.switchTab('photos');
+    }
+
     async saveProject(e) {
         e.preventDefault(); const f = e.target;
         const creatorData = this.getCreatorData();
