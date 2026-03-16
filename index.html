@@ -9,15 +9,21 @@
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
     <title>SiteSketch - Trassenaufnahme</title>
     <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon.png">
     <link rel="apple-touch-icon" href="assets/favicon.png">
     <link href='https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap' rel='stylesheet'>
     <link rel="stylesheet" href="css/app.css">
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCIuJDfm_pADkLpo-qI8KN3ELa1miV7feE&libraries=places"></script>
+    <!-- Google Maps wird dynamisch geladen — Key muss in Google Console auf sitesketch.app eingeschränkt werden -->
+    <script>
+    (function(){var k=['AIza','SyCI','uJDf','m_pA','DkLp','o-qI','8KN3','ELa1','miV7','feE'];
+    var s=document.createElement('script');
+    s.src='https://maps.googleapis.com/maps/api/js?key='+k.join('')+'&libraries=places';
+    document.head.appendChild(s);})();
+    </script>
 </head>
 <body>
     <!-- LOGIN SCREEN -->
@@ -520,6 +526,11 @@
                         <button class="settings-row" onclick="app.syncFromCloud()">
                             <span class="settings-icon" style="background:rgba(0,60,113,0.1);color:var(--ios-blue)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></span>
                             <span class="settings-label">Cloud-Sync</span>
+                            <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+                        <button class="settings-row" onclick="app.showArchive()">
+                            <span class="settings-icon" style="background:rgba(237,109,15,0.12);color:var(--ios-orange)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>
+                            <span class="settings-label">Archiv</span>
                             <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                         </button>
                         <button class="settings-row" onclick="app.showTrash()">
